@@ -1,0 +1,24 @@
+{
+  "name": "kacamata-pos-print",
+  "version": "1.0.0",
+  "description": "Local print service for Kacamata POS",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test": "node --test"
+  },
+  "keywords": [
+    "pos",
+    "print",
+    "epson-lx310",
+    "raw-print"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2"
+  }
+}
