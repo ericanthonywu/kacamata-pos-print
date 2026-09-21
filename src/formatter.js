@@ -9,7 +9,7 @@ function formatDate(dStr) {
   return `${day}-${month}-${year}`;
 }
 
-function formatReceiptText(d) {
+function formatReceiptText(d, branch) {
   const orderDate = formatDate(d.order_date);
   const tglSelesai = formatDate(d.tanggal_selesai);
 
@@ -48,10 +48,19 @@ function formatReceiptText(d) {
   // Margin atas agar teks tidak terpotong di ujung kertas
   lines.push('');
 
+  const branchName = (branch || process.env.BRANCH || '').toLowerCase();
+  const storeTitle = process.env.STORE_NAME
+    || (branchName === 'pontianak' || branchName === 'pusat' ? 'OPTIK KACAMATA LENSA' : null)
+    || (branchName === 'ketapang' || branchName === 'cabang' ? 'OPTIK SENTRAL PONTIANAK' : null)
+    || d.store_name
+    || 'OPTIK SENTRAL PONTIANAK';
+  const storeAddress = process.env.STORE_ADDRESS || 'JL.R.SUPRAPTO NO.41 KETAPANG';
+  const storePhone = process.env.STORE_PHONE || 'TELP : 085350509540';
+
   // Header: 3 columns
-  lines.push(padRight('NO INVOICE:', 20) + centerText('OPTIK SENTRAL PONTIANAK', W - 40) + padLeft('dikirim', 20));
-  lines.push(padRight(no, 20) + centerText('JL.R.SUPRAPTO NO.41 KETAPANG', W - 40) + padLeft(orderDate, 20));
-  lines.push(padRight('', 20) + centerText('TELP : 085350509540', W - 40) + padLeft('', 20));
+  lines.push(padRight('NO INVOICE:', 20) + centerText(storeTitle, W - 40) + padLeft('dikirim', 20));
+  lines.push(padRight(no, 20) + centerText(storeAddress, W - 40) + padLeft(orderDate, 20));
+  lines.push(padRight('', 20) + centerText(storePhone, W - 40) + padLeft('', 20));
 
   // Nama, Telp, Tgl Selesai
   const strTglSelesai = 'Tgl. Selesai : ' + tglSelesai;

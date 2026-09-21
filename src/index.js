@@ -5,17 +5,30 @@ require('dotenv').config();
 
 const { formatReceiptText } = require('./formatter');
 const { printRawText } = require('./printer');
+const { fetchJson } = require('./http-client');
 
 const app = express();
-const PORT = process.env.PORT || 3001;
-const SERVER_API_URL = process.env.SERVER_API_URL || 'http://localhost:3000';
+const PORT = process.env.PORT || 3000;
+const SERVER_API_URL = process.env.SERVER_API_URL || process.env.KETAPANG_SERVER_URL || process.env.PONTIANAK_SERVER_URL || 'http://localhost:3000';
 const DEFAULT_PRINTER_NAME = process.env.PRINTER_NAME || 'LX310';
+
+function resolveServerUrl(branch) {
+  if (process.env.SERVER_API_URL) return process.env.SERVER_API_URL;
+  const b = (branch || '').toLowerCase();
+  if (b === 'pontianak' || b === 'pusat') {
+    return process.env.PONTIANAK_SERVER_URL || process.env.HOST_PONTIANAK || 'http://localhost:9090';
+  }
+  if (b === 'ketapang' || b === 'cabang') {
+    return process.env.KETAPANG_SERVER_URL || process.env.HOST_KETAPANG || 'http://localhost:8080';
+  }
+  return SERVER_API_URL;
+}
 
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Config endpoint so UI can read backend default configurations
+// Config endpoint
 app.get('/api/config', (req, res) => {
   res.json({
     serverApiUrl: SERVER_API_URL,
@@ -48,24 +61,25 @@ app.post('/api/print-raw', (req, res) => {
 
 // API endpoint to fetch detail from remote POS server and print directly
 app.post('/api/print-by-nota', async (req, res) => {
-  const { no_nota, printerName } = req.body;
+  const { no_nota, branch, printerName } = req.body;
   if (!no_nota) {
     return res.status(400).json({ success: false, message: 'no_nota is required' });
   }
 
+  const serverUrl = resolveServerUrl(branch);
+
   try {
-    const fetchUrl = `${SERVER_API_URL.replace(/\/$/, '')}/api/penjualan/nota/${encodeURIComponent(no_nota)}`;
-    const response = await fetch(fetchUrl);
-    const result = await response.json();
+    const fetchUrl = `${serverUrl.replace(/\/$/, '')}/api/penjualan/nota/${encodeURIComponent(no_nota)}`;
+    const result = await fetchJson(fetchUrl);
 
     if (!result.success || !result.data) {
       return res.status(404).json({
         success: false,
-        message: result.message || 'Data nota tidak ditemukan'
+        message: result.message || 'Data nota tidak ditemukan di server'
       });
     }
 
-    const formatted = formatReceiptText(result.data);
+    const formatted = formatReceiptText(result.data, branch);
     const printer = printerName || DEFAULT_PRINTER_NAME;
 
     printRawText(formatted.textData, printer, (err) => {
@@ -83,10 +97,17 @@ app.post('/api/print-by-nota', async (req, res) => {
       });
     });
   } catch (err) {
-    console.error('Error fetching sales detail:', err);
-    res.status(500).json({
+    const statusCode = err.response ? err.response.status : null;
+    const errMsg = (err.response && err.response.data && err.response.data.message)
+      || err.message
+      || 'Gagal mengambil data dari server POS';
+
+    console.error(`Error fetching sales detail for ${no_nota}:`, errMsg);
+    res.status(statusCode === 404 ? 404 : 500).json({
       success: false,
-      message: 'Gagal mengambil data dari server POS: ' + err.message
+      message: statusCode === 404
+        ? 'Nota tidak ditemukan di server POS'
+        : 'Gagal mengambil data dari server POS: ' + errMsg
     });
   }
 });
@@ -94,6 +115,7 @@ app.post('/api/print-by-nota', async (req, res) => {
 // Serve the printing UI page
 const servePrintPage = (req, res) => {
   const noNotaParam = req.params.no_nota || req.query.no_nota || '';
+  const branchParam = req.params.branch || req.query.branch || '';
 
   const html = `<!DOCTYPE html>
 <html lang="id">
@@ -116,11 +138,11 @@ const servePrintPage = (req, res) => {
     }
     .card {
       background: #ffffff;
-      padding: 2rem;
-      border-radius: 10px;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+      padding: 2.2rem 2rem;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
       width: 90%;
-      max-width: 450px;
+      max-width: 440px;
       text-align: center;
     }
     .spinner {
@@ -130,16 +152,16 @@ const servePrintPage = (req, res) => {
       width: 48px;
       height: 48px;
       animation: spin 1s linear infinite;
-      margin: 20px auto;
+      margin: 15px auto 20px auto;
     }
     @keyframes spin {
       0% { transform: rotate(0deg); }
       100% { transform: rotate(360deg); }
     }
     .status {
-      font-size: 1.1rem;
+      font-size: 1.15rem;
       font-weight: 600;
-      margin-bottom: 10px;
+      margin-bottom: 8px;
     }
     .subtitle {
       font-size: 0.9rem;
@@ -150,8 +172,10 @@ const servePrintPage = (req, res) => {
       color: #842029;
       padding: 12px;
       border-radius: 6px;
-      margin-top: 15px;
+      margin-top: 18px;
       font-size: 0.9rem;
+      text-align: left;
+      word-break: break-word;
       display: none;
     }
   </style>
@@ -166,6 +190,7 @@ const servePrintPage = (req, res) => {
 
   <script>
     const noNota = ${JSON.stringify(noNotaParam)};
+    const branch = ${JSON.stringify(branchParam)};
 
     async function processPrint() {
       if (!noNota) {
@@ -177,7 +202,7 @@ const servePrintPage = (req, res) => {
         const response = await fetch('/api/print-by-nota', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ no_nota: noNota })
+          body: JSON.stringify({ no_nota: noNota, branch: branch })
         });
 
         const result = await response.json();
@@ -194,7 +219,7 @@ const servePrintPage = (req, res) => {
           showError(result.message || 'Gagal melakukan pencetakan');
         }
       } catch (err) {
-        showError("Terjadi kesalahan jaringan atau server: " + err.message);
+        showError("Terjadi kesalahan jaringan atau service: " + err.message);
       }
     }
 
@@ -215,12 +240,21 @@ const servePrintPage = (req, res) => {
   res.send(html);
 };
 
+// Standard print routes (No prefix needed)
 app.get('/print/:no_nota', servePrintPage);
 app.get('/print', servePrintPage);
+
+// Backward-compatible branch routes
+app.get('/ketapang/print/:no_nota', (req, res) => { req.params.branch = 'ketapang'; servePrintPage(req, res); });
+app.get('/ketapang/print', (req, res) => { req.params.branch = 'ketapang'; servePrintPage(req, res); });
+app.get('/pontianak/print/:no_nota', (req, res) => { req.params.branch = 'pontianak'; servePrintPage(req, res); });
+app.get('/pontianak/print', (req, res) => { req.params.branch = 'pontianak'; servePrintPage(req, res); });
 
 if (require.main === module) {
   app.listen(PORT, () => {
     console.log(`Kacamata POS Print Service running on http://localhost:${PORT}`);
+    console.log(`- Print URL: http://localhost:${PORT}/print/:no_nota`);
+    console.log(`- Connected POS Server: ${SERVER_API_URL}`);
   });
 }
 

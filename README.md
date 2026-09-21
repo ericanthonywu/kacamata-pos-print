@@ -1,12 +1,14 @@
 # Kacamata POS Print Service
 
-A simple Node.js microservice running on the client local machine to handle raw dot-matrix printing (e.g. Epson LX-310) for **Kacamata POS**.
+A lightweight Node.js microservice running on each store's local computer (Windows 7 / 10 / 11) to handle raw dot-matrix printing (e.g. Epson LX-310) for **Kacamata POS**.
 
 ## Features
-- Opens print URL (e.g., `http://localhost:3001/print/:no_nota`) in a new browser tab.
-- Displays a loading screen while fetching sale/invoice details from the main POS server API.
-- Formats the sale receipt formatted specifically for LX-310 (80 columns dot matrix).
-- Triggers terminal/system print command directly to the shared local printer.
+- **Clean Standard URL**: `http://localhost:3000/print/:no_nota`
+- **Windows 7 & Node.js 14 Compatible**: Zero external HTTP dependencies; uses native Node.js `https`/`http` request handling.
+- **Automatic Store Header**: Prints correct store branding (`OPTIK SENTRAL PONTIANAK` or `OPTIK KACAMATA LENSA`) provided by the server API response.
+- **HTTPS POS Compatible**: Seamlessly connects to remote HTTPS POS server APIs from local Node.js without mixed-content issues.
+- Formats sale receipts specifically for Epson LX-310 (80 columns continuous dot matrix).
+- Sends raw print command directly via Windows terminal (`copy /b`).
 - Automatically closes the browser tab after successful printing.
 
 ## Setup Instructions
@@ -17,18 +19,23 @@ A simple Node.js microservice running on the client local machine to handle raw 
    ```
 
 2. **Configure Environment**
-   Copy `.env.example` to `.env` and set your configuration:
+   Copy `.env.example` to `.env` and set the URL of the POS server for this store:
    ```env
-   PORT=3001
-   SERVER_API_URL=http://your-pos-server.com
+   PORT=3000
    PRINTER_NAME=LX310
+
+   # Contoh untuk komputer toko Ketapang:
+   SERVER_API_URL=https://pos.yourdomain.com/ketapang
+
+   # Contoh untuk komputer toko Pontianak:
+   # SERVER_API_URL=https://pos.yourdomain.com/pontianak
    ```
 
-3. **Printer Setup (Windows)**
-   Ensure your printer (e.g., Epson LX-310) is connected and shared over the network:
-   - Go to Control Panel > Devices and Printers.
-   - Right-click your printer -> Printer Properties -> Sharing tab.
-   - Check "Share this printer" and set the share name to match `PRINTER_NAME` in `.env` (e.g., `LX310`).
+3. **Printer Setup (Windows 7 / 10 / 11)**
+   Ensure your printer (e.g., Epson LX-310) is connected and shared:
+   - Go to **Control Panel** > **Devices and Printers**.
+   - Right-click your printer -> **Printer Properties** -> **Sharing** tab.
+   - Check **"Share this printer"** and set the Share Name to match `PRINTER_NAME` in `.env` (e.g., `LX310`).
 
 4. **Run the Application**
    ```bash
@@ -36,11 +43,5 @@ A simple Node.js microservice running on the client local machine to handle raw 
    ```
 
 ## Usage
-To trigger printing from the POS web client, open a link or window targeting:
-```
-http://localhost:3001/print/INV-202609001
-```
-Or with query parameter:
-```
-http://localhost:3001/print?no_nota=INV-202609001
-```
+The web POS application triggers printing automatically when clicking **Simpan & Print** or **Print Nota**:
+`http://localhost:3000/print/INV-YYYYMMDD-XXXX`
