@@ -24,6 +24,19 @@ function resolveServerUrl(branch) {
   return SERVER_API_URL;
 }
 
+// Enable CORS and Private Network Access (PNA) for requests from HTTPS sites
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Access-Control-Request-Private-Network');
+  if (req.headers['access-control-request-private-network']) {
+    res.setHeader('Access-Control-Allow-Private-Network', 'true');
+  }
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(204);
+  }
+  next();
+});
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));

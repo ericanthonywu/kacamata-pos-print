@@ -22,7 +22,7 @@ function formatReceiptText(d, branch) {
   const lensaRItem = (d.detail || []).find((i) => i.tipe === 'lensa_r');
   const lensaLItem = (d.detail || []).find((i) => i.tipe === 'lensa_l');
   const aksesorisItem = (d.detail || []).find((i) => i.tipe === 'aksesoris');
-  const lainLainItem = (d.detail || []).find((i) => i.tipe === 'lain_lain');
+  const lainLainItems = (d.detail || []).filter((i) => i.tipe === 'lain_lain');
 
   const subtotal = d.subtotal || d.total || 0;
   const total = d.total || 0;
@@ -50,10 +50,10 @@ function formatReceiptText(d, branch) {
 
   const branchName = (branch || process.env.BRANCH || '').toLowerCase();
   const storeTitle = process.env.STORE_NAME
-    || (branchName === 'pontianak' || branchName === 'pusat' ? 'OPTIK KACAMATA LENSA' : null)
-    || (branchName === 'ketapang' || branchName === 'cabang' ? 'OPTIK SENTRAL PONTIANAK' : null)
     || d.store_name
-    || 'OPTIK SENTRAL PONTIANAK';
+    || (branchName === 'pontianak' || branchName === 'pusat' ? 'OPTIK KACAMATA LENSA' : null)
+    || (branchName === 'ketapang' || branchName === 'cabang' ? 'OPTIK SENTRAL KETAPANG' : null)
+    || 'OPTIK SENTRAL KETAPANG';
   const storeAddress = process.env.STORE_ADDRESS || 'JL.R.SUPRAPTO NO.41 KETAPANG';
   const storePhone = process.env.STORE_PHONE || 'TELP : 085350509540';
 
@@ -70,25 +70,44 @@ function formatReceiptText(d, branch) {
 
   // Items
   let itemNum = 1;
-  if (frameItem) {
-    lines.push(padRight(itemNum + '. FRAME   : ' + (frameItem.nama_barang || '-'), W - 25) + padLeft('Rp ' + Number(frameItem.harga * frameItem.jumlah).toLocaleString('id-ID'), 25));
-    itemNum++;
-  }
-  if (lensaRItem) {
-    lines.push(padRight(itemNum + '. LENSA(R): ' + (lensaRItem.nama_barang || '-'), W - 25) + padLeft('Rp ' + Number(lensaRItem.harga * lensaRItem.jumlah).toLocaleString('id-ID'), 25));
-    itemNum++;
-  }
-  if (lensaLItem) {
-    lines.push(padRight(itemNum + '. LENSA(L): ' + (lensaLItem.nama_barang || '-'), W - 25) + padLeft('Rp ' + Number(lensaLItem.harga * lensaLItem.jumlah).toLocaleString('id-ID'), 25));
-    itemNum++;
-  }
-  if (aksesorisItem) {
-    lines.push(padRight(itemNum + '. AKSESORIS: ' + (aksesorisItem.nama_barang || '-'), W - 25) + padLeft('Rp ' + Number(aksesorisItem.harga * aksesorisItem.jumlah).toLocaleString('id-ID'), 25));
-    itemNum++;
-  }
-  if (lainLainItem) {
-    lines.push(padRight(itemNum + '. LAIN-LAIN: ' + (lainLainItem.keterangan || '-'), W - 25) + padLeft('Rp ' + Number(lainLainItem.harga * lainLainItem.jumlah).toLocaleString('id-ID'), 25));
-    itemNum++;
+  if (d.is_b2b) {
+    (d.detail || []).forEach((item) => {
+      let catName = (item.kategori_nama || (item.tipe && item.tipe !== 'lain_lain' ? item.tipe : 'BARANG')).toUpperCase().replace(/_/g, ' ');
+      if (catName.length > 9) catName = catName.substring(0, 9);
+      const labelPrefix = itemNum + '. ' + padRight(catName + ':', 11);
+      const namaItem = item.nama_barang || item.keterangan || '-';
+      const subtotalItem = Number((item.harga || 0) * (item.jumlah || 1)).toLocaleString('id-ID');
+      lines.push(padRight(labelPrefix + namaItem, W - 25) + padLeft('Rp ' + subtotalItem, 25));
+      if (item.jumlah > 1) {
+        lines.push(padRight('    (' + item.jumlah + ' pcs @ Rp ' + Number(item.harga || 0).toLocaleString('id-ID') + ')', W));
+      }
+      itemNum++;
+    });
+  } else {
+    if (frameItem) {
+      lines.push(padRight(itemNum + '. FRAME   : ' + (frameItem.nama_barang || '-'), W - 25) + padLeft('Rp ' + Number(frameItem.harga * frameItem.jumlah).toLocaleString('id-ID'), 25));
+      itemNum++;
+    }
+    if (lensaRItem) {
+      lines.push(padRight(itemNum + '. LENSA(R): ' + (lensaRItem.nama_barang || '-'), W - 25) + padLeft('Rp ' + Number(lensaRItem.harga * lensaRItem.jumlah).toLocaleString('id-ID'), 25));
+      itemNum++;
+    }
+    if (lensaLItem) {
+      lines.push(padRight(itemNum + '. LENSA(L): ' + (lensaLItem.nama_barang || '-'), W - 25) + padLeft('Rp ' + Number(lensaLItem.harga * lensaLItem.jumlah).toLocaleString('id-ID'), 25));
+      itemNum++;
+    }
+    if (aksesorisItem) {
+      lines.push(padRight(itemNum + '. AKSESORIS: ' + (aksesorisItem.nama_barang || '-'), W - 25) + padLeft('Rp ' + Number(aksesorisItem.harga * aksesorisItem.jumlah).toLocaleString('id-ID'), 25));
+      itemNum++;
+    }
+    lainLainItems.forEach((item) => {
+      let catName = (item.kategori_nama || 'LAIN-LAIN').toUpperCase();
+      if (catName.length > 9) catName = catName.substring(0, 9);
+      const labelPrefix = itemNum + '. ' + padRight(catName + ':', 11);
+      const namaItem = item.nama_barang || item.keterangan || '-';
+      lines.push(padRight(labelPrefix + namaItem, W - 25) + padLeft('Rp ' + Number(item.harga * item.jumlah).toLocaleString('id-ID'), 25));
+      itemNum++;
+    });
   }
 
   // Totals (right-aligned)
@@ -108,33 +127,40 @@ function formatReceiptText(d, branch) {
     return padRight(leftText.substring(0, W - 35), W - 33) + rightText;
   }
 
-  const frameText = 'Frame     : ' + (frameItem ? frameItem.nama_barang || '-' : '-');
-  lines.push(makeRow(frameText, 'No.           : ' + no));
+  if (!d.is_b2b) {
+    const frameText = 'Frame     : ' + (frameItem ? frameItem.nama_barang || '-' : '-');
+    lines.push(makeRow(frameText, 'No.           : ' + no));
 
-  const rResep = [d.sph_r ? 'SPH: ' + d.sph_r : '', d.cyl_r ? 'CYL: ' + d.cyl_r : '', d.axis_r ? 'AXIS: ' + d.axis_r : '', d.add_r ? 'ADD: ' + d.add_r : ''].filter(Boolean).join(' ');
-  const lensaRText = 'Lensa (R) : ' + (lensaRItem ? lensaRItem.nama_barang || '-' : '-') + (rResep ? ' (' + rResep + ')' : '');
-  lines.push(makeRow(lensaRText, 'Sales         : ' + sales));
+    const rResep = [d.sph_r ? 'SPH: ' + d.sph_r : '', d.cyl_r ? 'CYL: ' + d.cyl_r : '', d.axis_r ? 'AXIS: ' + d.axis_r : '', d.add_r ? 'ADD: ' + d.add_r : ''].filter(Boolean).join(' ');
+    const lensaRText = 'Lensa (R) : ' + (lensaRItem ? lensaRItem.nama_barang || '-' : '-') + (rResep ? ' (' + rResep + ')' : '');
+    lines.push(makeRow(lensaRText, 'Sales         : ' + sales));
 
-  const lResep = [d.sph_l ? 'SPH: ' + d.sph_l : '', d.cyl_l ? 'CYL: ' + d.cyl_l : '', d.axis_l ? 'AXIS: ' + d.axis_l : '', d.add_l ? 'ADD: ' + d.add_l : ''].filter(Boolean).join(' ');
-  const lensaLText = 'Lensa (L) : ' + (lensaLItem ? lensaLItem.nama_barang || '-' : '-') + (lResep ? ' (' + lResep + ')' : '');
-  lines.push(makeRow(lensaLText, 'Tgl. Selesai  : ' + tglSelesai));
+    const lResep = [d.sph_l ? 'SPH: ' + d.sph_l : '', d.cyl_l ? 'CYL: ' + d.cyl_l : '', d.axis_l ? 'AXIS: ' + d.axis_l : '', d.add_l ? 'ADD: ' + d.add_l : ''].filter(Boolean).join(' ');
+    const lensaLText = 'Lensa (L) : ' + (lensaLItem ? lensaLItem.nama_barang || '-' : '-') + (lResep ? ' (' + lResep + ')' : '');
+    lines.push(makeRow(lensaLText, 'Tgl. Selesai  : ' + tglSelesai));
 
-  const rSphStr = d.sph_r ? d.sph_r : '      ';
-  const rCylStr = d.cyl_r ? d.cyl_r : '      ';
-  const rAxisStr = d.axis_r ? d.axis_r : '      ';
-  const rAddStr = d.add_r ? d.add_r : '      ';
-  const lSphStr = d.sph_l ? d.sph_l : '      ';
-  const lCylStr = d.cyl_l ? d.cyl_l : '      ';
-  const lAxisStr = d.axis_l ? d.axis_l : '      ';
-  const lAddStr = d.add_l ? d.add_l : '      ';
+    const rSphStr = d.sph_r ? d.sph_r : '      ';
+    const rCylStr = d.cyl_r ? d.cyl_r : '      ';
+    const rAxisStr = d.axis_r ? d.axis_r : '      ';
+    const rAddStr = d.add_r ? d.add_r : '      ';
+    const lSphStr = d.sph_l ? d.sph_l : '      ';
+    const lCylStr = d.cyl_l ? d.cyl_l : '      ';
+    const lAxisStr = d.axis_l ? d.axis_l : '      ';
+    const lAddStr = d.add_l ? d.add_l : '      ';
 
-  if (d.sph_r || d.add_r || d.cyl_r || d.axis_r || d.sph_l || d.add_l || d.cyl_l || d.axis_l || d.pd) {
-    if (d.sph_r || d.add_r || d.cyl_r || d.axis_r || d.sph_l || d.add_l || d.cyl_l || d.axis_l) {
-      const pdStr = d.pd ? 'PD: ' + d.pd : '';
-      lines.push('SPHR: ' + padRight(rSphStr, 10) + ' CYLR: ' + padRight(rCylStr, 10) + ' AXISR: ' + padRight(rAxisStr, 10) + ' ADDR: ' + padRight(rAddStr, 10) + pdStr);
-      lines.push('SPHL: ' + padRight(lSphStr, 10) + ' CYLL: ' + padRight(lCylStr, 10) + ' AXISL: ' + padRight(lAxisStr, 10) + ' ADDL: ' + lAddStr);
-    } else if (d.pd) {
-      lines.push('PD  : ' + d.pd);
+    if (d.sph_r || d.add_r || d.cyl_r || d.axis_r || d.sph_l || d.add_l || d.cyl_l || d.axis_l || d.pd) {
+      if (d.sph_r || d.add_r || d.cyl_r || d.axis_r || d.sph_l || d.add_l || d.cyl_l || d.axis_l) {
+        const pdStr = d.pd ? 'PD: ' + d.pd : '';
+        lines.push('SPHR: ' + padRight(rSphStr, 10) + ' CYLR: ' + padRight(rCylStr, 10) + ' AXISR: ' + padRight(rAxisStr, 10) + ' ADDR: ' + padRight(rAddStr, 10) + pdStr);
+        lines.push('SPHL: ' + padRight(lSphStr, 10) + ' CYLL: ' + padRight(lCylStr, 10) + ' AXISL: ' + padRight(lAxisStr, 10) + ' ADDL: ' + lAddStr);
+      } else if (d.pd) {
+        lines.push('PD  : ' + d.pd);
+      }
+    }
+  } else {
+    lines.push(makeRow('Jenis     : PENJUALAN TOKO (B2B)', 'No.           : ' + no));
+    if (tglSelesai) {
+      lines.push(makeRow('Jatuh Tempo: ' + tglSelesai, 'Tgl. Order    : ' + orderDate));
     }
   }
 
@@ -145,9 +171,11 @@ function formatReceiptText(d, branch) {
   lines.push('');
   const strTtd = '(...........)';
   lines.push(padRight('', W - strTtd.length) + strTtd);
-  lines.push('SYARAT DAN KETENTUAN');
-  lines.push('* KACAMATA YANG TIDAK DIAMBIL DALAM JANGKA WAKTU 2 BULAN MAKA UANG MUKA');
-  lines.push('  AKAN DINYATAKAN HANGUS DAN DILUAR RESIKO KAMI');
+  if (!d.is_b2b) {
+    lines.push('SYARAT DAN KETENTUAN');
+    lines.push('* KACAMATA YANG TIDAK DIAMBIL DALAM JANGKA WAKTU 2 BULAN MAKA UANG MUKA');
+    lines.push('  AKAN DINYATAKAN HANGUS DAN DILUAR RESIKO KAMI');
+  }
 
   return {
     lines,
