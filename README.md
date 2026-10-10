@@ -19,10 +19,11 @@ A lightweight Node.js microservice running on each store's local computer (Windo
    ```
 
 2. **Configure Environment**
-   Copy `.env.example` to `.env` and set the URL of the POS server for this store:
+   Copy `.env.example` to `.env` and configure printer share names:
    ```env
    PORT=3000
    PRINTER_NAME=LX310
+   BARCODE_PRINTER_NAME=BARCODE
 
    # Contoh untuk komputer toko Ketapang:
    SERVER_API_URL=https://pos.yourdomain.com/ketapang
@@ -32,10 +33,10 @@ A lightweight Node.js microservice running on each store's local computer (Windo
    ```
 
 3. **Printer Setup (Windows 7 / 10 / 11)**
-   Ensure your printer (e.g., Epson LX-310) is connected and shared:
+   Ensure your printers are connected and shared in Windows:
    - Go to **Control Panel** > **Devices and Printers**.
-   - Right-click your printer -> **Printer Properties** -> **Sharing** tab.
-   - Check **"Share this printer"** and set the Share Name to match `PRINTER_NAME` in `.env` (e.g., `LX310`).
+   - **Nota Printer** (e.g. Epson LX-310): Right-click -> **Printer Properties** -> **Sharing** tab -> Check **"Share this printer"** -> Set name matching `PRINTER_NAME` (e.g. `LX310`).
+   - **Barcode Label Printer** (e.g. Xprinter XP-4601B / XP-460B): Right-click -> **Printer Properties** -> **Sharing** tab -> Check **"Share this printer"** -> Set name matching `BARCODE_PRINTER_NAME` (e.g. `BARCODE` atau `XP-460B`).
 
 4. **Run the Application**
    ```bash
@@ -43,5 +44,7 @@ A lightweight Node.js microservice running on each store's local computer (Windo
    ```
 
 ## Usage
-The web POS application triggers printing automatically when clicking **Simpan & Print** or **Print Nota**:
-`http://localhost:3000/print/INV-YYYYMMDD-XXXX`
+- **Nota Penjualan**: `POST /api/print` with `{ text: "...", printerName: "LX310" }`
+- **Barcode Label**: `POST /api/print-barcode` with `{ text: "...", printerName: "BARCODE" }` or `{ items: [...], format: "double|single", printerName: "..." }`
+- **Config & Health**: `GET /api/config`
+

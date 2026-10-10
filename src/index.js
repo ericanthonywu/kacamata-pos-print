@@ -3,10 +3,12 @@ const cors = require('cors');
 require('dotenv').config();
 
 const { printRawText } = require('./printer');
+const { generateTsplBarcodes } = require('./tspl');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const DEFAULT_PRINTER_NAME = process.env.PRINTER_NAME || 'LX310';
+const DEFAULT_BARCODE_PRINTER_NAME = process.env.BARCODE_PRINTER_NAME || 'BARCODE';
 
 // Enable CORS and Private Network Access (PNA) for requests from HTTPS sites
 app.use((req, res, next) => {
@@ -32,7 +34,8 @@ app.get(['/', '/health', '/api/config'], (req, res) => {
   res.json({
     status: 'ok',
     service: 'kacamata-pos-print',
-    defaultPrinterName: DEFAULT_PRINTER_NAME
+    defaultPrinterName: DEFAULT_PRINTER_NAME,
+    defaultBarcodePrinterName: DEFAULT_BARCODE_PRINTER_NAME
   });
 });
 
@@ -47,6 +50,8 @@ const handlePrint = (req, res) => {
     text = req.body.text || req.body.textData || req.body.raw;
     if (req.body.printerName || req.body.printer) {
       printer = req.body.printerName || req.body.printer;
+    } else if (req.body.printerType === 'barcode' || req.body.type === 'barcode') {
+      printer = DEFAULT_BARCODE_PRINTER_NAME;
     }
   }
 
@@ -73,18 +78,63 @@ const handlePrint = (req, res) => {
   });
 };
 
-// Endpoint for printing plain text
+// Barcode print handler — supports raw TSPL text or { items, format } array
+const handlePrintBarcode = (req, res) => {
+  let text = null;
+  let printer = DEFAULT_BARCODE_PRINTER_NAME;
+
+  if (typeof req.body === 'string') {
+    text = req.body;
+  } else if (req.body && typeof req.body === 'object') {
+    if (req.body.printerName || req.body.printer) {
+      printer = req.body.printerName || req.body.printer;
+    }
+    if (req.body.text || req.body.textData || req.body.raw) {
+      text = req.body.text || req.body.textData || req.body.raw;
+    } else if (Array.isArray(req.body.items)) {
+      text = generateTsplBarcodes(req.body.items, req.body.format || 'double');
+    }
+  }
+
+  if (!text || !text.trim()) {
+    return res.status(400).json({
+      success: false,
+      message: 'Parameter "text", "textData", atau array "items" wajib diisi'
+    });
+  }
+
+  printRawText(text, printer, (err, output) => {
+    if (err) {
+      console.error('Gagal mencetak barcode ke printer:', err.message);
+      return res.status(500).json({
+        success: false,
+        message: 'Gagal mencetak: ' + err.message
+      });
+    }
+    console.log(`[PRINT-BARCODE] Berhasil dikirim ke printer "${printer}" (${text.length} karakter)`);
+    res.json({
+      success: true,
+      message: 'Berhasil dikirim ke printer ' + printer
+    });
+  });
+};
+
+// Endpoints
 app.post('/api/print', handlePrint);
+app.post('/api/print-barcode', handlePrintBarcode);
+app.post('/api/print/barcode', handlePrintBarcode);
 
 if (require.main === module) {
   app.listen(PORT, () => {
     console.log(`=========================================`);
-    console.log(`Kacamata POS Print Service (Agnostic)`);
+    console.log(`Kacamata POS Print Service (Agnostic + Barcode)`);
     console.log(`Listening on http://localhost:${PORT}`);
-    console.log(`Default Printer: ${DEFAULT_PRINTER_NAME}`);
+    console.log(`Default Receipt Printer : ${DEFAULT_PRINTER_NAME}`);
+    console.log(`Default Barcode Printer : ${DEFAULT_BARCODE_PRINTER_NAME}`);
     console.log(`Endpoints:`);
-    console.log(`- GET  /api/config (Health check)`);
-    console.log(`- POST /api/print  (Body: { text: "...", printerName: "..." })`);
+    console.log(`- GET  /api/config        (Health check & printer config)`);
+    console.log(`- POST /api/print         (Body: { text: "...", printerName: "..." })`);
+    console.log(`- POST /api/print-barcode (Body: { text: "..." } or { items: [...], format: "..." })`);
     console.log(`=========================================`);
   });
 }
