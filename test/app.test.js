@@ -16,6 +16,8 @@ test('HTTP Routes - GET /api/config returns status and default printer', async (
     assert.strictEqual(data.status, 'ok');
     assert.strictEqual(data.service, 'kacamata-pos-print');
     assert.ok(data.defaultPrinterName);
+    assert.ok(data.branch);
+    assert.strictEqual(typeof data.paperWidth, 'number');
   } finally {
     server.close();
   }
@@ -169,4 +171,99 @@ test('HTTP Routes - POST /api/print-barcode prints items array or raw text', asy
     server.close();
   }
 });
+
+test('Receipt Formatter - formats Pontianak thermal (48 col) and Ketapang dot matrix (80 col)', () => {
+  const { formatReceiptText } = require('../src/receipt');
+  const sampleSale = {
+    no_nota: 'INV-20261011-0001',
+    order_date: '2026-10-10',
+    pelanggan_nama: 'test',
+    pelanggan_telp: '08123456789',
+    sales_nama: 'Budi',
+    total: 120000,
+    dp: 120000,
+    status_bayar: 'lunas',
+    metode_bayar: 'cash',
+    detail: [
+      { tipe: 'frame', nama_barang: 'frame 120', harga: 120000, jumlah: 1 }
+    ]
+  };
+
+  // 1. Pontianak (Thermal 80mm / 48 columns)
+  const ponti = formatReceiptText(sampleSale, 'pontianak');
+  assert.ok(ponti.textData.includes('OPTIK KACAMATA LENSA'));
+  assert.ok(ponti.textData.includes('PONTIANAK'));
+  assert.ok(ponti.textData.includes('INV-20261011-0001'));
+  // Ensure lines do not exceed 48 characters (except trailing cut command)
+  ponti.lines.forEach((line) => {
+    if (!line.includes('\x1d\x56')) {
+      assert.ok(line.length <= 48, `Line exceeds 48 chars: "${line}" (${line.length})`);
+    }
+  });
+
+  // 2. Ketapang (Dot matrix / 80 columns)
+  const ktp = formatReceiptText(sampleSale, 'ketapang');
+  assert.ok(ktp.textData.includes('OPTIK SENTRAL KETAPANG'));
+  assert.ok(ktp.textData.includes('JL.R.SUPRAPTO NO.41 KETAPANG'));
+  assert.ok(ktp.textData.includes('INV-20261011-0001'));
+  ktp.lines.forEach((line) => {
+    assert.ok(line.length <= 80, `Line exceeds 80 chars: "${line}" (${line.length})`);
+  });
+});
+
+test('HTTP Routes - POST /api/print accepts data object and formats receipt', async () => {
+  const server = http.createServer(app);
+  await new Promise((resolve) => server.listen(0, resolve));
+  const port = server.address().port;
+
+  try {
+    const res = await fetch(`http://localhost:${port}/api/print`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        data: {
+          no_nota: 'INV-TEST-DATA',
+          order_date: '2026-10-10',
+          pelanggan_nama: 'Customer Test',
+          total: 50000,
+          dp: 50000,
+          status_bayar: 'lunas',
+          detail: [{ tipe: 'frame', nama_barang: 'Test Frame', harga: 50000, jumlah: 1 }]
+        },
+        branch: 'pontianak',
+        printerName: 'TEST_PRINTER'
+      })
+    });
+    const data = await res.json();
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(data.success, true);
+  } finally {
+    server.close();
+  }
+});
+
+test('HTTP Routes - POST /api/print accepts type: test_nota and formats matching branch', async () => {
+  const server = http.createServer(app);
+  await new Promise((resolve) => server.listen(0, resolve));
+  const port = server.address().port;
+
+  try {
+    const res = await fetch(`http://localhost:${port}/api/print`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'test_nota',
+        printerName: 'TEST_PRINTER'
+      })
+    });
+    const data = await res.json();
+
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(data.success, true);
+  } finally {
+    server.close();
+  }
+});
+
 

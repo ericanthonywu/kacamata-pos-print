@@ -4,10 +4,12 @@ require('dotenv').config();
 
 const { printRawText } = require('./printer');
 const { generateTsplBarcodes } = require('./tspl');
+const { formatReceiptText, getTestNotaText } = require('./receipt');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const DEFAULT_PRINTER_NAME = process.env.PRINTER_NAME || 'LX310';
+const BRANCH = (process.env.BRANCH || 'ketapang').toLowerCase();
+const DEFAULT_PRINTER_NAME = process.env.PRINTER_NAME || (BRANCH === 'pontianak' ? 'XH-80UL' : 'LX310');
 const DEFAULT_BARCODE_PRINTER_NAME = process.env.BARCODE_PRINTER_NAME || 'BARCODE';
 
 // Enable CORS and Private Network Access (PNA) for requests from HTTPS sites
@@ -34,12 +36,15 @@ app.get(['/', '/health', '/api/config'], (req, res) => {
   res.json({
     status: 'ok',
     service: 'kacamata-pos-print',
+    branch: BRANCH,
+    paperWidth: BRANCH === 'pontianak' ? 48 : 80,
+    printerType: BRANCH === 'pontianak' ? 'thermal' : 'dotmatrix',
     defaultPrinterName: DEFAULT_PRINTER_NAME,
     defaultBarcodePrinterName: DEFAULT_BARCODE_PRINTER_NAME
   });
 });
 
-// Agnostic print handler — receives plain text and directly prints to printer
+// Agnostic print handler — receives plain text or data object and directly prints to printer
 const handlePrint = (req, res) => {
   let text = null;
   let printer = DEFAULT_PRINTER_NAME;
@@ -47,18 +52,29 @@ const handlePrint = (req, res) => {
   if (typeof req.body === 'string') {
     text = req.body;
   } else if (req.body && typeof req.body === 'object') {
-    text = req.body.text || req.body.textData || req.body.raw;
     if (req.body.printerName || req.body.printer) {
       printer = req.body.printerName || req.body.printer;
     } else if (req.body.printerType === 'barcode' || req.body.type === 'barcode') {
       printer = DEFAULT_BARCODE_PRINTER_NAME;
+    }
+
+    if (req.body.type === 'test_nota' || req.body.action === 'test_nota') {
+      text = getTestNotaText(req.body.branch || BRANCH, printer);
+    } else if (req.body.data || req.body.penjualan) {
+      const branchParam = req.body.branch || BRANCH;
+      const formatted = formatReceiptText(req.body.data || req.body.penjualan, branchParam);
+      text = formatted.textData;
+    } else if (req.body.text && req.body.text.indexOf('TEST CETAK NOTA KACAMATA POS') !== -1) {
+      text = getTestNotaText(req.body.branch || BRANCH, printer);
+    } else if (req.body.text || req.body.textData || req.body.raw) {
+      text = req.body.text || req.body.textData || req.body.raw;
     }
   }
 
   if (!text || !text.trim()) {
     return res.status(400).json({
       success: false,
-      message: 'Parameter "text" atau "textData" wajib diisi'
+      message: 'Parameter "text", "textData", atau "data" wajib diisi'
     });
   }
 
