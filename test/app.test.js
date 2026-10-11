@@ -122,8 +122,8 @@ test('TSPL Formatter - generates valid TSPL commands for double and single forma
   assert.ok(tsplDouble.includes('GAP 2 mm, 0 mm'));
   assert.ok(tsplDouble.includes('DIRECTION 1'));
   assert.ok(tsplDouble.includes('SHIFT -40'));
-  assert.ok(tsplDouble.includes('BARCODE 54,32,"128",42,0,0,1,1,"BRG-000001"'));
-  assert.ok(tsplDouble.includes('BARCODE 323,32,"128",42,0,0,1,1,"BRG-000001"'));
+  assert.ok(tsplDouble.includes('BARCODE 67,32,"128",42,0,0,1,1,"BRG-000001"'));
+  assert.ok(tsplDouble.includes('BARCODE 359,32,"128",42,0,0,1,1,"BRG-000001"'));
   assert.ok(tsplDouble.includes('Rp 1.500.000'));
   // Quantity 1 + 2 = 3 labels (each has PRINT 1,1)
   const printOccurrences = (tsplDouble.match(/PRINT 1,1/g) || []).length;
