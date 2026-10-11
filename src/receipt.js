@@ -37,7 +37,7 @@ function formatThermalReceipt(d) {
   var tglSelesai = dFormatDate(d.tanggal_selesai);
   var no = d.no_nota || '-';
   var nama = d.pelanggan_nama || '-';
-  var telp = d.pelanggan_telp || '-';
+  var telp = d.pelanggan_telp || d.no_telp || d.telp || d.pelanggan_no_telp || '-';
   var sales = d.sales_nama || '-';
 
   var subtotal = d.subtotal || d.total || 0;
@@ -60,9 +60,7 @@ function formatThermalReceipt(d) {
   var pelangganLine = 'Pelanggan : ' + nama;
   if (pelangganLine.length > W) pelangganLine = pelangganLine.substring(0, W);
   lines.push(padRight(pelangganLine, W));
-  if (telp && telp !== '-') {
-    lines.push(padRight('Telepon   : ' + telp, W));
-  }
+  lines.push(padRight('No. Telp  : ' + (telp && telp !== '-' ? telp : '-'), W));
   if (sales && sales !== '-') {
     lines.push(padRight('Sales     : ' + sales, W));
   }
@@ -139,25 +137,93 @@ function formatThermalReceipt(d) {
     var hasResep = d.sph_r || d.add_r || d.cyl_r || d.axis_r || d.sph_l || d.add_l || d.cyl_l || d.axis_l || d.pd;
     if (hasResep) {
       lines.push(centerText('[UKURAN RESEP LENSA]', W));
-      if (d.sph_r || d.add_r || d.cyl_r || d.axis_r) {
-        var rParts = [];
-        if (d.sph_r) rParts.push('SPH:' + d.sph_r);
-        if (d.cyl_r) rParts.push('CYL:' + d.cyl_r);
-        if (d.axis_r) rParts.push('AX:' + d.axis_r);
-        if (d.add_r) rParts.push('ADD:' + d.add_r);
-        lines.push(padRight('R: ' + rParts.join(' '), W));
+
+      var cleanSphR = String(d.sph_r || '').replace(/^sph[:\s]*/i, '').trim();
+      var cleanCylR = String(d.cyl_r || '').replace(/^cyl[:\s]*/i, '').trim();
+      var cleanAxisR = String(d.axis_r || '').replace(/^ax(is)?[:\s]*/i, '').trim();
+      var cleanAddR = String(d.add_r || '').replace(/^add[:\s]*/i, '').trim();
+
+      var cleanSphL = String(d.sph_l || '').replace(/^sph[:\s]*/i, '').trim();
+      var cleanCylL = String(d.cyl_l || '').replace(/^cyl[:\s]*/i, '').trim();
+      var cleanAxisL = String(d.axis_l || '').replace(/^ax(is)?[:\s]*/i, '').trim();
+      var cleanAddL = String(d.add_l || '').replace(/^add[:\s]*/i, '').trim();
+
+      var cleanPd = String(d.pd || '').replace(/^pd[:\s]*/i, '').trim();
+
+      var hasR = Boolean(cleanSphR || cleanCylR || cleanAxisR || cleanAddR);
+      var hasL = Boolean(cleanSphL || cleanCylL || cleanAxisL || cleanAddL);
+      var hasAnyCyl = Boolean(cleanCylR || cleanAxisR || cleanCylL || cleanAxisL);
+      var hasAnyAdd = Boolean(cleanAddR || cleanAddL);
+
+      var formatCyl = function (cyl, axis) {
+        if (!cyl && !axis) return '';
+        if (cyl && axis) {
+          var s = 'CYL:' + cyl + ' AXIS:' + axis;
+          if (s.length > 19) {
+            s = 'CYL:' + cyl + ' AX:' + axis;
+          }
+          return s.substring(0, 19);
+        }
+        if (cyl) return ('CYL: ' + cyl).substring(0, 19);
+        return ('AXIS: ' + axis).substring(0, 19);
+      };
+
+      var trimRightSpaces = function (str) {
+        return String(str || '').replace(/\s+$/, '');
+      };
+
+      if (hasR || hasL) {
+        var pdPlaced = false;
+
+        if (hasAnyCyl || hasAnyAdd) {
+          // Format 4 kolom proporsional (lebar total maks 46 < 48 kolom thermal)
+          // Col 1 (R/L SPH): 9 char | Col 2 (CYL/AXIS): 19 char | Col 3 (ADD): 10 char | Col 4 (PD): 8 char
+          if (hasR) {
+            var r1 = padRight('R: ' + (cleanSphR || '-'), 9);
+            var r2 = padRight(formatCyl(cleanCylR, cleanAxisR), 19);
+            var r3 = padRight(cleanAddR ? 'ADD: ' + cleanAddR : '', 10);
+            var r4 = cleanPd ? 'PD: ' + cleanPd : '';
+            if (r4) pdPlaced = true;
+            var lineR = trimRightSpaces(r1 + r2 + r3 + r4);
+            if (lineR.length > W) lineR = lineR.substring(0, W);
+            lines.push(lineR);
+          }
+
+          if (hasL) {
+            var l1 = padRight('L: ' + (cleanSphL || '-'), 9);
+            var l2 = padRight(formatCyl(cleanCylL, cleanAxisL), 19);
+            var l3 = padRight(cleanAddL ? 'ADD: ' + cleanAddL : '', 10);
+            var l4 = (!pdPlaced && cleanPd) ? 'PD: ' + cleanPd : '';
+            var lineL = trimRightSpaces(l1 + l2 + l3 + l4);
+            if (lineL.length > W) lineL = lineL.substring(0, W);
+            lines.push(lineL);
+          }
+        } else {
+          // Hanya ada SPH (dan opsional PD)
+          if (hasR) {
+            var rText = 'R: ' + (cleanSphR || '-');
+            var rPd = cleanPd ? 'PD: ' + cleanPd : '';
+            if (rPd) pdPlaced = true;
+            var lineR = rPd ? (padRight(rText, 20) + rPd) : rText;
+            if (lineR.length > W) lineR = lineR.substring(0, W);
+            lines.push(lineR);
+          }
+          if (hasL) {
+            var lText = 'L: ' + (cleanSphL || '-');
+            var lPd = (!pdPlaced && cleanPd) ? 'PD: ' + cleanPd : '';
+            var lineL = lPd ? (padRight(lText, 20) + lPd) : lText;
+            if (lineL.length > W) lineL = lineL.substring(0, W);
+            lines.push(lineL);
+          }
+        }
+
+        if (!pdPlaced && cleanPd) {
+          lines.push(padRight('PD: ' + cleanPd, W));
+        }
+      } else if (cleanPd) {
+        lines.push(padRight('PD: ' + cleanPd, W));
       }
-      if (d.sph_l || d.add_l || d.cyl_l || d.axis_l) {
-        var lParts = [];
-        if (d.sph_l) lParts.push('SPH:' + d.sph_l);
-        if (d.cyl_l) lParts.push('CYL:' + d.cyl_l);
-        if (d.axis_l) lParts.push('AX:' + d.axis_l);
-        if (d.add_l) lParts.push('ADD:' + d.add_l);
-        lines.push(padRight('L: ' + lParts.join(' '), W));
-      }
-      if (d.pd) {
-        lines.push(padRight('PD: ' + d.pd, W));
-      }
+
       lines.push(separator('-'));
     }
   }

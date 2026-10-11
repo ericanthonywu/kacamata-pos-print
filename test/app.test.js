@@ -194,8 +194,34 @@ test('Receipt Formatter - formats Pontianak thermal (48 col) and Ketapang dot ma
   assert.ok(ponti.textData.includes('OPTIK KACAMATA LENSA'));
   assert.ok(ponti.textData.includes('PONTIANAK'));
   assert.ok(ponti.textData.includes('INV-20261011-0001'));
+  assert.ok(ponti.textData.includes('No. Telp  : 08123456789'));
   // Ensure lines do not exceed 48 characters (except trailing cut command)
   ponti.lines.forEach((line) => {
+    if (!line.includes('\x1d\x56')) {
+      assert.ok(line.length <= 48, `Line exceeds 48 chars: "${line}" (${line.length})`);
+    }
+  });
+
+  // Test prescription edge cases for Pontianak
+  const resepSale = {
+    ...sampleSale,
+    sph_r: '-0.25',
+    cyl_r: '-0.50',
+    axis_r: '180',
+    add_r: '1',
+    sph_l: '-0.25',
+    cyl_l: '-0.50',
+    axis_l: '180',
+    add_l: '1',
+    pd: '64'
+  };
+  const pontiResep = formatReceiptText(resepSale, 'pontianak');
+  assert.ok(pontiResep.textData.includes('R: -0.25'));
+  assert.ok(pontiResep.textData.includes('CYL:'));
+  assert.ok(pontiResep.textData.includes('AXIS:180'));
+  assert.ok(pontiResep.textData.includes('ADD: 1'));
+  assert.ok(pontiResep.textData.includes('PD: 64'));
+  pontiResep.lines.forEach((line) => {
     if (!line.includes('\x1d\x56')) {
       assert.ok(line.length <= 48, `Line exceeds 48 chars: "${line}" (${line.length})`);
     }
