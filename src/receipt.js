@@ -152,21 +152,24 @@ function formatThermalReceipt(d) {
 
       var hasR = Boolean(cleanSphR || cleanCylR || cleanAxisR || cleanAddR);
       var hasL = Boolean(cleanSphL || cleanCylL || cleanAxisL || cleanAddL);
-      var hasAnyCyl = Boolean(cleanCylR || cleanAxisR || cleanCylL || cleanAxisL);
-      var hasAnyAdd = Boolean(cleanAddR || cleanAddL);
+      var activeCols = ['sph'];
+      if (cleanCylR || cleanCylL) activeCols.push('cyl');
+      if (cleanAxisR || cleanAxisL) activeCols.push('axis');
+      if (cleanAddR || cleanAddL) activeCols.push('add');
+      if (cleanPd) activeCols.push('pd');
 
-      var formatCyl = function (cyl, axis) {
-        if (!cyl && !axis) return '';
-        if (cyl && axis) {
-          var s = 'CYL:' + cyl + ' AXIS:' + axis;
-          if (s.length > 19) {
-            s = 'CYL:' + cyl + ' AX:' + axis;
-          }
-          return s.substring(0, 19);
-        }
-        if (cyl) return ('CYL: ' + cyl).substring(0, 19);
-        return ('AXIS: ' + axis).substring(0, 19);
-      };
+      var widths = {};
+      if (activeCols.length === 5) {
+        widths = { sph: 10, cyl: 11, axis: 10, add: 9, pd: 8 };
+      } else if (activeCols.length === 4) {
+        widths = { sph: 12, cyl: 14, axis: 12, add: 10, pd: 10 };
+      } else if (activeCols.length === 3) {
+        widths = { sph: 15, cyl: 17, axis: 16, add: 16, pd: 16 };
+      } else if (activeCols.length === 2) {
+        widths = { sph: 24, cyl: 24, axis: 24, add: 24, pd: 24 };
+      } else {
+        widths = { sph: 48 };
+      }
 
       var trimRightSpaces = function (str) {
         return String(str || '').replace(/\s+$/, '');
@@ -175,46 +178,53 @@ function formatThermalReceipt(d) {
       if (hasR || hasL) {
         var pdPlaced = false;
 
-        if (hasAnyCyl || hasAnyAdd) {
-          // Format 4 kolom proporsional (lebar total maks 46 < 48 kolom thermal)
-          // Col 1 (R/L SPH): 9 char | Col 2 (CYL/AXIS): 19 char | Col 3 (ADD): 10 char | Col 4 (PD): 8 char
-          if (hasR) {
-            var r1 = padRight('R: ' + (cleanSphR || '-'), 9);
-            var r2 = padRight(formatCyl(cleanCylR, cleanAxisR), 19);
-            var r3 = padRight(cleanAddR ? 'ADD: ' + cleanAddR : '', 10);
-            var r4 = cleanPd ? 'PD: ' + cleanPd : '';
-            if (r4) pdPlaced = true;
-            var lineR = trimRightSpaces(r1 + r2 + r3 + r4);
-            if (lineR.length > W) lineR = lineR.substring(0, W);
-            lines.push(lineR);
+        var formatCell = function (col, isR) {
+          if (col === 'sph') {
+            var sph = isR ? cleanSphR : cleanSphL;
+            return (isR ? 'R: ' : 'L: ') + (sph || '-');
           }
+          if (col === 'cyl') {
+            var cyl = isR ? cleanCylR : cleanCylL;
+            return cyl ? ('CYL: ' + cyl) : '';
+          }
+          if (col === 'axis') {
+            var axis = isR ? cleanAxisR : cleanAxisL;
+            return axis ? ('AXIS: ' + axis) : '';
+          }
+          if (col === 'add') {
+            var add = isR ? cleanAddR : cleanAddL;
+            return add ? ('ADD: ' + add) : '';
+          }
+          if (col === 'pd') {
+            if ((isR || !hasR) && cleanPd && !pdPlaced) {
+              pdPlaced = true;
+              return 'PD: ' + cleanPd;
+            }
+            return '';
+          }
+          return '';
+        };
 
-          if (hasL) {
-            var l1 = padRight('L: ' + (cleanSphL || '-'), 9);
-            var l2 = padRight(formatCyl(cleanCylL, cleanAxisL), 19);
-            var l3 = padRight(cleanAddL ? 'ADD: ' + cleanAddL : '', 10);
-            var l4 = (!pdPlaced && cleanPd) ? 'PD: ' + cleanPd : '';
-            var lineL = trimRightSpaces(l1 + l2 + l3 + l4);
-            if (lineL.length > W) lineL = lineL.substring(0, W);
-            lines.push(lineL);
+        if (hasR) {
+          var lineR = '';
+          for (var i = 0; i < activeCols.length; i++) {
+            var c = activeCols[i];
+            lineR += padRight(formatCell(c, true), widths[c] || 10);
           }
-        } else {
-          // Hanya ada SPH (dan opsional PD)
-          if (hasR) {
-            var rText = 'R: ' + (cleanSphR || '-');
-            var rPd = cleanPd ? 'PD: ' + cleanPd : '';
-            if (rPd) pdPlaced = true;
-            var lineR = rPd ? (padRight(rText, 20) + rPd) : rText;
-            if (lineR.length > W) lineR = lineR.substring(0, W);
-            lines.push(lineR);
+          lineR = trimRightSpaces(lineR);
+          if (lineR.length > W) lineR = lineR.substring(0, W);
+          lines.push(lineR);
+        }
+
+        if (hasL) {
+          var lineL = '';
+          for (var j = 0; j < activeCols.length; j++) {
+            var colName = activeCols[j];
+            lineL += padRight(formatCell(colName, false), widths[colName] || 10);
           }
-          if (hasL) {
-            var lText = 'L: ' + (cleanSphL || '-');
-            var lPd = (!pdPlaced && cleanPd) ? 'PD: ' + cleanPd : '';
-            var lineL = lPd ? (padRight(lText, 20) + lPd) : lText;
-            if (lineL.length > W) lineL = lineL.substring(0, W);
-            lines.push(lineL);
-          }
+          lineL = trimRightSpaces(lineL);
+          if (lineL.length > W) lineL = lineL.substring(0, W);
+          lines.push(lineL);
         }
 
         if (!pdPlaced && cleanPd) {

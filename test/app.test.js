@@ -218,7 +218,7 @@ test('Receipt Formatter - formats Pontianak thermal (48 col) and Ketapang dot ma
   const pontiResep = formatReceiptText(resepSale, 'pontianak');
   assert.ok(pontiResep.textData.includes('R: -0.25'));
   assert.ok(pontiResep.textData.includes('CYL:'));
-  assert.ok(pontiResep.textData.includes('AXIS:180'));
+  assert.ok(pontiResep.textData.includes('AXIS: 180'));
   assert.ok(pontiResep.textData.includes('ADD: 1'));
   assert.ok(pontiResep.textData.includes('PD: 64'));
   pontiResep.lines.forEach((line) => {
