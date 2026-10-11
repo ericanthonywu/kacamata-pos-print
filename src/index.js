@@ -92,7 +92,10 @@ const handlePrintBarcode = (req, res) => {
     if (req.body.text || req.body.textData || req.body.raw) {
       text = req.body.text || req.body.textData || req.body.raw;
     } else if (Array.isArray(req.body.items)) {
-      text = generateTsplBarcodes(req.body.items, req.body.format || 'double');
+      var opts = req.body.options || {};
+      if (typeof req.body.shiftY !== 'undefined') opts.shiftY = req.body.shiftY;
+      if (typeof req.body.shiftX !== 'undefined') opts.shiftX = req.body.shiftX;
+      text = generateTsplBarcodes(req.body.items, req.body.format || 'double', opts);
     }
   }
 
